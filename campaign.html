@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nexus - 紹介キャンペーン</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <header class="bg-black text-white p-4">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold">Nexus</h1>
+      <nav>
+        <a href="index.html" class="mr-4 hover:underline">ホーム</a>
+        <a href="mypage.html" class="mr-4 hover:underline">マイページ</a>
+        <a href="contact.html" class="mr-4 hover:underline">お問い合わせ</a>
+        <a href="about.html" class="hover:underline">運営情報</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container mx-auto flex-grow p-8 max-w-lg">
+    <h2 class="text-3xl font-bold mb-6">紹介キャンペーン</h2>
+
+    <p class="mb-6 text-gray-700">
+      他のユーザーの紹介コードを入力すると、紹介者にポイントが1pt追加されます。<br />
+      自分の紹介コードはマイページで確認してください。
+    </p>
+
+    <form id="invite-code-form" class="mb-6">
+      <label for="invite-code" class="block mb-2 font-semibold">紹介コードを入力</label>
+      <input type="text" id="invite-code" maxlength="8" required class="w-full border border-gray-300 rounded px-3 py-2 mb-4" />
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-semibold">
+        送信
+      </button>
+    </form>
+
+    <p id="message" class="text-center text-red-600 font-semibold"></p>
+  </main>
+
+  <footer class="bg-black text-white p-4 text-center">
+    &copy; 2025 Nexus. All Rights Reserved.
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, runTransaction
+    } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTRC_rG6KhMRjxGQTtmpigvzzxyhUYp4A",
+      authDomain: "tekito-390211.firebaseapp.com",
+      projectId: "tekito-390211",
+      storageBucket: "tekito-390211.firebasestorage.app",
+      messagingSenderId: "663751064264",
+      appId: "1:663751064264:web:940d9eade5cd46c58fc3fd",
+      measurementId: "G-5678GHBQPC"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const form = document.getElementById("invite-code-form");
+    const inviteCodeInput = document.getElementById("invite-code");
+    const messageEl = document.getElementById("message");
+
+    let currentUser = null;
+
+    // 招待コードはUID先頭8文字大文字（mypage.html準拠）
+    function normalizeCode(code) {
+      return code.trim().toUpperCase();
+    }
+
+    // ポイント付与トランザクション関数
+    async function addPointToUser(uid) {
+      const userRef = doc(db, "users", uid);
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) {
+          transaction.set(userRef, { points: 1, usedCodes: [] });
+        } else {
+          const data = userDoc.data();
+          const currentPoints = data.points || 0;
+          transaction.update(userRef, { points: currentPoints + 1 });
+        }
+      });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+      currentUser = user;
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      messageEl.textContent = "";
+
+      if (!currentUser) {
+        messageEl.textContent = "ログインしてください。";
+        return;
+      }
+
+      const inputCode = normalizeCode(inviteCodeInput.value);
+
+      // 自分のコードを使えないようにする
+      const myCode = currentUser.uid.slice(0,8).toUpperCase();
+      if (inputCode === myCode) {
+        messageEl.textContent = "自分の紹介コードは入力できません。";
+        return;
+      }
+
+      // 使ったコードかどうか確認
+      const userRef = doc(db, "users", currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const usedCodes = (userSnap.exists() && userSnap.data().usedCodes) || [];
+
+      if (usedCodes.includes(inputCode)) {
+        messageEl.textContent = "その紹介コードはすでに使用済みです。";
+        return;
+      }
+
+      // 入力されたコードの持ち主を探す (uid先頭8文字で検索)
+      // FirestoreでUIDがコードの人を探すのは困難なので、usersコレクション全体を走査しないといけないが
+      // それはクライアントでは現実的でないため、別途クラウドファンクションやサーバー処理が必要
+      // ここでは簡易版として、ユーザーコレクションから直接uidを取得すると仮定
+
+      // コード＝UID先頭8文字なので uidはinputCode + 何か? → UIDは大抵ランダムなので
+      // UID先頭8文字をkeyにしたusersコレクションの別ドキュメントを作る方法を推奨
+
+      // 以下は簡易的にコードをキーにしたドキュメント参照例
+
+      try {
+        const codeDocRef = doc(db, "inviteCodes", inputCode);
+        const codeDocSnap = await getDoc(codeDocRef);
+        if (!codeDocSnap.exists()) {
+          messageEl.textContent = "その紹介コードは存在しません。";
+          return;
+        }
+        const ownerUid = codeDocSnap.data().ownerUid;
+        if (!ownerUid) {
+          messageEl.textContent = "紹介コードの所有者情報が見つかりません。";
+          return;
+        }
+
+        // トランザクションでポイント加算・使用コード登録
+        await runTransaction(db, async (transaction) => {
+          const ownerRef = doc(db, "users", ownerUid);
+          const userRef = doc(db, "users", currentUser.uid);
+
+          const ownerDoc = await transaction.get(ownerRef);
+          const userDoc = await transaction.get(userRef);
+
+          if (!ownerDoc.exists() || !userDoc.exists()) {
+            throw "ユーザーデータが見つかりません。";
+          }
+
+          // ポイント加算（紹介者）
+          const ownerPoints = ownerDoc.data().points || 0;
+          transaction.update(ownerRef, { points: ownerPoints + 1 });
+
+          // 使用済コードに登録（利用者）
+          const userUsedCodes = userDoc.data().usedCodes || [];
+          if (userUsedCodes.includes(inputCode)) {
+            throw "すでに使用済みのコードです。";
+          }
+          transaction.update(userRef, {
+            usedCodes: [...userUsedCodes, inputCode]
+          });
+        });
+
+        messageEl.style.color = "green";
+        messageEl.textContent = "紹介コードが正常に適用されました！紹介者に1ポイント加算されました。";
+        inviteCodeInput.value = "";
+      } catch (error) {
+        messageEl.style.color = "red";
+        messageEl.textContent = "エラー: " + (error.message || error);
+      }
+    });
+  </script>
+</body>
+</html>

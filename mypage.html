@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nexus - マイページ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <header class="bg-black text-white p-4">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold">Nexus</h1>
+      <nav>
+        <a href="index.html" class="mr-4 hover:underline">ホーム</a>
+        <a href="campaign.html" class="mr-4 hover:underline">紹介キャンペーン</a>
+        <a href="contact.html" class="mr-4 hover:underline">お問い合わせ</a>
+        <a href="about.html" class="hover:underline">運営情報</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container mx-auto flex-grow p-8">
+    <h2 class="text-3xl font-bold mb-6">マイページ</h2>
+
+    <div id="user-info" class="mb-8">
+      <p><strong>ログイン中のユーザー：</strong><span id="user-email">読み込み中...</span></p>
+      <p><strong>紹介コード：</strong><span id="invite-code">読み込み中...</span></p>
+      <p><strong>ポイント：</strong><span id="points">読み込み中...</span> pt</p>
+    </div>
+
+    <button id="logout-btn" class="bg-red-600 text-white py-2 px-6 rounded hover:bg-red-700">ログアウト</button>
+  </main>
+
+  <footer class="bg-black text-white p-4 text-center">
+    &copy; 2025 Nexus. All Rights Reserved.
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTRC_rG6KhMRjxGQTtmpigvzzxyhUYp4A",
+      authDomain: "tekito-390211.firebaseapp.com",
+      projectId: "tekito-390211",
+      storageBucket: "tekito-390211.firebasestorage.app",
+      messagingSenderId: "663751064264",
+      appId: "1:663751064264:web:940d9eade5cd46c58fc3fd",
+      measurementId: "G-5678GHBQPC"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const userEmailEl = document.getElementById("user-email");
+    const inviteCodeEl = document.getElementById("invite-code");
+    const pointsEl = document.getElementById("points");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    function generateInviteCode(uid) {
+      // uidの先頭8文字を大文字にして紹介コードにする簡易版
+      return uid.slice(0, 8).toUpperCase();
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        userEmailEl.textContent = user.email || "匿名ユーザー";
+
+        const inviteCode = generateInviteCode(user.uid);
+        inviteCodeEl.textContent = inviteCode;
+
+        // Firestoreからポイント取得（usersコレクションのドキュメントIDはuid想定）
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists()) {
+          const data = userDocSnap.data();
+          pointsEl.textContent = data.points ?? 0;
+        } else {
+          // 新規ユーザーならポイント0で初期化
+          await setDoc(userDocRef, { points: 0 });
+          pointsEl.textContent = "0";
+        }
+      } else {
+        // 未ログインはログインページへリダイレクト
+        window.location.href = "login.html";
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      signOut(auth).then(() => {
+        window.location.href = "login.html";
+      });
+    });
+  </script>
+</body>
+</html>
