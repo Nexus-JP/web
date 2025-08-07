@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>Nexus-JP 稼働状況</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  .ok { color: green; }
+  .ng { color: red; }
+  .pending { color: gray; }
+</style>
+</head>
+<body>
+  <h1>📊 Nexus-JP 稼働状況</h1>
+  <ul>
+    <li>フロントエンド: <span id="frontend" class="pending">チェック中...</span></li>
+    <li>API (/api/status): <span id="api" class="pending">チェック中...</span></li>
+  </ul>
+  <p>最終更新: <span id="lastUpdated">---</span></p>
+
+  <script>
+    // Service Worker登録（複数ページで共通なら各HTMLに入れてOK）
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(() => console.log('Service Worker登録成功'))
+        .catch(console.error);
+    }
+
+    async function checkEndpoint(id, url) {
+      const el = document.getElementById(id);
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) {
+          el.textContent = `OK (${res.status})`;
+          el.className = 'ok';
+        } else {
+          el.textContent = `NG (${res.status})`;
+          el.className = 'ng';
+        }
+      } catch {
+        el.textContent = 'NG (接続エラー)';
+        el.className = 'ng';
+      }
+    }
+
+    async function checkAll() {
+      document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+      await checkEndpoint('frontend', 'https://nexus-jp.f5.si/');
+      await checkEndpoint('api', '/api/status'); // Service Workerが擬似応答
+    }
+
+    checkAll();
+    setInterval(checkAll, 60000);
+  </script>
+</body>
+</html>
