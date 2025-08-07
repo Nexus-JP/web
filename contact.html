@@ -42,5 +42,14 @@
   <footer class="bg-black text-white p-4 text-center">
     &copy; 2025 Nexus. All Rights Reserved.
   </footer>
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('Service Worker登録成功'))
+      .catch(console.error);
+  }
+</script>
+
 </body>
 </html>
+
