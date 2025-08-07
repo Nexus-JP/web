@@ -14,10 +14,7 @@
   <h1>📊 Nexus-JP 稼働状況</h1>
 
   <h2>フロントエンド</h2>
-  <ul>
-    <li>トップページ (/): <span id="frontend" class="pending">チェック中...</span></li>
-    <li>Aboutページ (/about.html): <span id="about" class="pending">チェック中...</span></li>
-  </ul>
+  <ul id="frontend-checks"></ul>
 
   <h2>API（擬似）</h2>
   <ul>
@@ -34,10 +31,25 @@
   <p>🕒 最終更新: <span id="lastUpdated">---</span></p>
 
   <script>
+    const frontendPages = [
+      'index.html', 'about.html', 'campaign.html',
+      'contact.html', 'login.html', 'signup.html',
+      'mypage.html', 'status.html', '404.html'
+    ];
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(() => console.log('Service Worker登録成功'))
         .catch(console.error);
+    }
+
+    function createListItems() {
+      const list = document.getElementById('frontend-checks');
+      frontendPages.forEach(page => {
+        const li = document.createElement('li');
+        li.innerHTML = `${page}: <span id="fe-${page}" class="pending">チェック中...</span>`;
+        list.appendChild(li);
+      });
     }
 
     async function checkEndpoint(id, url, expectJson = false) {
@@ -52,7 +64,7 @@
           el.textContent = `NG (${res.status})`;
           el.className = 'ng';
         }
-      } catch (e) {
+      } catch {
         el.textContent = 'NG (接続エラー)';
         el.className = 'ng';
       }
@@ -62,18 +74,20 @@
       document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
 
       // フロントエンド
-      await checkEndpoint('frontend', 'https://nexus-jp.f5.si/');
-      await checkEndpoint('about', 'https://nexus-jp.f5.si/about.html');
+      for (const page of frontendPages) {
+        await checkEndpoint(`fe-${page}`, `/${page}`);
+      }
 
       // 擬似API
       await checkEndpoint('api-status', '/api/status', true);
       await checkEndpoint('api-version', '/api/version', true);
 
       // 画像
-      await checkEndpoint('img-test', 'https://nexus-jp.f5.si/test.png');
-      await checkEndpoint('img-favicon', 'https://nexus-jp.f5.si/favicon.ico');
+      await checkEndpoint('img-test', '/test.png');
+      await checkEndpoint('img-favicon', '/favicon.ico');
     }
 
+    createListItems();
     checkAll();
     setInterval(checkAll, 60000);
   </script>
